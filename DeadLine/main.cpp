@@ -1,23 +1,29 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <string>
+#include <sstream>
+#include <iterator>
 
-void search(std::vector<std::string>& map, int x, int y)
+bool isWayOut(std::vector<std::string> map, int x, int y)
 {
 	map[y][x] = '!';
 
-	if (x - 1 >= 0 && map[y][x - 1] == '.')
-		search(map, x - 1, y);
+	if (x - 1 < 0 || x + 1 >= map[0].size() || y - 1 < 0 || y + 1 >= map.size())
+		return true;
 
-	if (x + 1 < map.size() && map[y][x + 1] == '.')
-		search(map, x + 1, y);
-	
-	if (y - 1 >= 0 && map[y - 1][x] == '.')
-		search(map, x, y - 1);
+	if (map[y][x - 1] == '0')
+		return isWayOut(map, x - 1, y);
 
-	if (y + 1 < map.size() && map[y + 1][x] == '.')
-		search(map, x, y + 1);
+	if (map[y][x + 1] == '0')
+		return isWayOut(map, x + 1, y);
+
+	if (map[y - 1][x] == '0')
+		return isWayOut(map, x, y - 1);
+
+	if (map[y + 1][x] == '0')
+		return isWayOut(map, x, y + 1);
+
+	return false;
 }
 
 int main(int argc, char const *argv[])
@@ -38,30 +44,32 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
-	int n = std::stoi(lines[0]);
+	std::istringstream iss(lines[0]);
+	std::vector<std::string> results((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
+
+	int h = std::stoi(results[0]);
+	int w = std::stoi(results[1]);
+
 	lines.erase(lines.begin());
 
-	search(lines, 0, 0);
-
 	int result = 0;
-	for (int y = 0; y < n; ++y)
-		for (int x = 0; x < n; ++x)
-			if (lines[y][x] == '!')
+
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+			if (lines[y][x] == '1')
 			{
-				if (x - 1 < 0 || lines[y][x - 1] == '#')
-					result += 9;
-				if (x + 1 >= n || lines[y][x + 1] == '#')
-					result += 9;
-				if (y - 1 < 0 || lines[y - 1][x] == '#')
-					result += 9;
-				if (y + 1 >= n || lines[y + 1][x] == '#')
-					result += 9;
+				if (x - 1 < 0 || (lines[y][x - 1] == '0' && isWayOut(lines, x - 1, y)))
+					result += 1;
+				if (x + 1 >= w || (lines[y][x + 1] == '0' && isWayOut(lines, x + 1, y)))
+					result += 1;
+				if (y - 1 < 0 || (lines[y - 1][x] == '0' && isWayOut(lines, x, y - 1)))
+					result += 1;
+				if (y + 1 >= h || (lines[y + 1][x] == '0' && isWayOut(lines, x, y + 1)))
+					result += 1;
 			}
 
-	result -= 9 * 4;
-
 	std::ofstream ofs("OUTPUT.txt");
-	ofs << result;
+	ofs << std::to_string(result);
 
 	return 0;
 }
