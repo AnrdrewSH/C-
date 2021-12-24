@@ -4,110 +4,152 @@
 #include <sstream>
 #include <iterator>
 
-int countSteps(std::vector<std::string>& map, int mapSize);
+#define INPUT_FILE_NAME "INPUT.txt"
+#define OUTPUT_FILE_NAME "OUTPUT.txt"
+#define THERE_IS_NO_WAY "No"
+#define LAND_CHAR '@'
+#define WATER_CHAR '.'
 
-bool isNumber(const std::string& s);
-bool isValidArgs(std::vector<std::string>& args);
-bool isValidMap(std::vector<std::string>& map, int size);
-bool inRange(int mapSize, int raftSize, int x, int y) { return (x >= 0 && x + raftSize < mapSize) && (y >= 0 && y + raftSize < mapSize); }
-bool collision(std::vector<std::string>& map, int raftSize, int raftX, int raftY);
+enum MAP_LOCATION_MARKER { WATER = 0, LAND = -1, VISITED = -2 };
 
-void findPath(std::vector<std::string> map, int mapSize, int raftSize, int& steps, int x = 0, int y = 0)
+/*
+/	I'm using a self-written "Node" structure to store
+/ coordinates instead of standard std::pair because
+/ i’m too lazy to write ".first" and ".second",
+/ it’s too cumbersome.
+*/
+struct Node
 {
-	if (steps != -1)
-		return;
+	int x;
+	int y;
 
-	map[y][x] = '!';
+	Node(int x, int y) : x(x), y(y) {}
 
-	if (x == mapSize - (raftSize + 1) && y == mapSize - (raftSize + 1))
-		steps = countSteps(map, mapSize) - 1;
+	bool operator ==(Node& otherNode) { return x == otherNode.x && y == otherNode.y; }
+};
 
-	if (inRange(mapSize, raftSize, x + 1, y) && !collision(map, raftSize, x + 1, y))
-		findPath(map, mapSize, raftSize, steps, x + 1, y);
+struct READING_RESULT
+{
+	const std::string OK = "ok";
+	const std::string INVALID_INPUT_DATA = "invalid input data";
+	const std::string CANNOT_OPEN_FILE = std::string("can't open file \"") + INPUT_FILE_NAME + "\"";
+};
 
-	if (inRange(mapSize, raftSize, x, y + 1) && !collision(map, raftSize, x, y + 1))
-		findPath(map, mapSize, raftSize, steps, x, y + 1);
+std::string readInput(std::vector<std::string>& lines, int& mapSize, int& raftSize);
 
-	if (inRange(mapSize, raftSize, x - 1, y) && !collision(map, raftSize, x - 1, y))
-		findPath(map, mapSize, raftSize, steps, x - 1, y);
+bool inRange(const int mapSize, const int raftSize, const int x, const int y) { return (x >= 0 && x + (raftSize - 1) < mapSize) && (y >= 0 && y + (raftSize - 1) < mapSize); }
+bool collision(int* const map, const int mapSize, const int raftSize, const int raftX, const int raftY);
 
-	if (inRange(mapSize, raftSize, x, y - 1) && !collision(map, raftSize, x, y - 1))
-		findPath(map, mapSize, raftSize, steps, x, y - 1);
-}
+
 
 int main(int argc, char const *argv[])
 {
 	std::vector<std::string> lines;
-	std::string line;
 
-	std::ifstream ifs("INPUT.txt");
-	if (!ifs.is_open())
-	{
-		std::cerr << "[error]: can't open file \"INPUT.txt\"" << std::endl;
-		return 1;
-	}
-	
-	while (std::getline(ifs, line))
-		lines.push_back(line);
-	ifs.close();
+	int mapSize;
+	int raftSize;
 
-	if (lines.size() < 2)
+	const std::string readingResult = readInput(lines, mapSize, raftSize);
+	if (readingResult != READING_RESULT().OK)
 	{
-		std::cerr << "[error]: invalid input data" << std::endl;
+		std::cerr << "[error]: " << readingResult << std::endl;
 		return 1;
 	}
 
-	std::istringstream iss(lines[0]);
-	std::vector<std::string> args((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
+	int* map = new int[mapSize * mapSize]{};
+	for (int y = 0; y < mapSize; ++y)
+		for (int x = 0; x < mapSize; ++x)
+			if (lines[y][x] == LAND_CHAR)
+				map[mapSize * y + x] = MAP_LOCATION_MARKER::LAND;
 
-	if (!isValidArgs(args))
-	{
-		std::cerr << "[error]: invalid input data" << std::endl;
-		return 1;
-	}
+	Node nodeStart(0, 0);
+	Node nodeEnd(mapSize - raftSize, mapSize - raftSize);
 
-	int mapSize = std::stoi(args[0]);
-	int raftSize = std::stoi(args[1]) - 1;
+	map[mapSize * nodeStart.y + nodeStart.x] = MAP_LOCATION_MARKER::VISITED;
 
-	lines.erase(lines.begin());
+	std::vector<Node> wave;
+	std::vector<Node> nextWave;
 
-		if (!isValidMap(lines, mapSize))
-	{
-		std::cerr << "[error]: invalid input data" << std::endl;
-		return 1;
-	}
+	wave.push_back(nodeStart);
 
 	int result = -1;
+	while (result == -1)
+	{
+		if (!wave.size())
+		{
+			if (!nextWave.size())
+				break;
+			wave = nextWave;
+			nextWave.clear();
+		}
 
-	findPath(lines, mapSize, raftSize, result);
+		Node node = wave.back();
+		wave.pop_back();
 
-	std::ofstream ofs("OUTPUT.txt");
-	ofs << (result != -1 ? std::to_string(result) : "No");
+		if (node == nodeEnd)
+		{
+			/*
+			/ In the next line of code, i'm doing +2 because
+			/ nodeStart is marked on map as MAP_LOCATION_MARKER::VISITED (-2)
+			/ and we need to add 2 to the result to compensate for that.
+			/ So if you remove this, the result is 2 less than expected.
+			*/
+			result = map[mapSize * node.y + node.x] + 2;
+			break;
+		}
 
+		if (inRange(mapSize, raftSize, node.x, node.y - 1) && map[mapSize * (node.y - 1) + node.x] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x, node.y - 1))
+		{
+			map[mapSize * (node.y - 1) + node.x] = map[mapSize * node.y + node.x] + 1;
+			nextWave.push_back(Node(node.x, node.y - 1));
+		}
+
+		if (inRange(mapSize, raftSize, node.x, node.y + 1) && map[mapSize * (node.y + 1) + node.x] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x, node.y + 1))
+		{
+			map[mapSize * (node.y + 1) + node.x] = map[mapSize * node.y + node.x] + 1;
+			nextWave.push_back(Node(node.x, node.y + 1));
+		}
+
+		if (inRange(mapSize, raftSize, node.x - 1, node.y) && map[mapSize * node.y + (node.x - 1)] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x - 1, node.y))
+		{
+			map[mapSize * node.y + (node.x - 1)] = map[mapSize * node.y + node.x] + 1;
+			nextWave.push_back(Node(node.x - 1, node.y));
+		}
+
+		if (inRange(mapSize, raftSize, node.x + 1, node.y) && map[mapSize * node.y + (node.x + 1)] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x + 1, node.y))
+		{
+			map[mapSize * node.y + (node.x + 1)] = map[mapSize * node.y + node.x] + 1;
+			nextWave.push_back(Node(node.x + 1, node.y));
+		}
+	}
+
+	std::ofstream ofs(OUTPUT_FILE_NAME);
+	ofs << (result != -1 ? std::to_string(result) : THERE_IS_NO_WAY);
+
+	delete[] map;
 	return 0;
 }
 
-int countSteps(std::vector<std::string>& map, int mapSize)
-{
-	int steps = 0;
-	
-	for (int y = 0; y < mapSize; ++y)
-		for (int x = 0; x < mapSize; ++x)
-			if (map[y][x] == '!')
-				steps++;
 
-	return steps;
+
+bool collision(int* const map, const int mapSize, const int raftSize, const int raftX, const int raftY)
+{
+	for (int y = 0; y < raftSize; ++y)
+		for (int x = 0; x < raftSize; ++x)
+			if (map[mapSize * (raftY + y) + (raftX + x)] == MAP_LOCATION_MARKER::LAND)
+				return true;
+	return false;
 }
 
-bool isNumber(const std::string& s)
+bool isNumber(const std::string& value)
 {
-	std::string::const_iterator it = s.begin();
-	while (it != s.end() && std::isdigit(*it))
+	std::string::const_iterator it = value.begin();
+	while (it != value.end() && std::isdigit(*it))
 		++it;
-	return !s.empty() && it == s.end();
+	return !value.empty() && it == value.end();
 }
 
-bool isValidArgs(std::vector<std::string>& args)
+bool isValidArgs(const std::vector<std::string>& args)
 {
 	if (args.size() < 2)
 		return false;
@@ -124,24 +166,47 @@ bool isValidArgs(std::vector<std::string>& args)
 	return true;
 }
 
-bool isValidMap(std::vector<std::string>& map, int size)
+bool isValidMap(const std::vector<std::string>& map, const int mapSize)
 {
-	if (map.size() != size)
+	if (map.size() != mapSize)
 		return false;
 
-	for (int y = 0; y < size; ++y)
-		for (int x = 0; x < size; ++x)
-			if (!(map[y][x] == '.' || map[y][x] == '@'))
+	for (int y = 0; y < mapSize; ++y)
+		for (int x = 0; x < mapSize; ++x)
+			if (!(map[y][x] == WATER_CHAR || map[y][x] == LAND_CHAR))
 				return false;
 
 	return true;
 }
 
-bool collision(std::vector<std::string>& map, int raftSize, int raftX, int raftY)
+std::string readInput(std::vector<std::string>& lines, int& mapSize, int& raftSize)
 {
-	for (int y = 0; y <= raftSize; ++y)
-		for (int x = 0; x <= raftSize; ++x)
-			if (map[raftY + y][raftX + x] != '.')
-				return true;
-	return false;
+	std::string line;
+
+	std::ifstream ifs(INPUT_FILE_NAME);
+	if (!ifs.is_open())
+		return READING_RESULT().CANNOT_OPEN_FILE;
+	
+	while (std::getline(ifs, line))
+		lines.push_back(line);
+	ifs.close();
+
+	if (lines.size() < 2)
+		return READING_RESULT().INVALID_INPUT_DATA;
+
+	std::istringstream iss(lines[0]);
+	std::vector<std::string> args((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
+
+	if (!isValidArgs(args))
+		return READING_RESULT().INVALID_INPUT_DATA;
+
+	mapSize = std::stoi(args[0]);
+	raftSize = std::stoi(args[1]);
+
+	lines.erase(lines.begin());
+
+	if (!isValidMap(lines, mapSize))
+		return READING_RESULT().INVALID_INPUT_DATA;
+
+	return READING_RESULT().OK;
 }
