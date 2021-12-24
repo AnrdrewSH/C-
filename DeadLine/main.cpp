@@ -3,142 +3,90 @@
 #include <vector>
 #include <sstream>
 #include <iterator>
+#include <algorithm>
 
 #define INPUT_FILE_NAME "INPUT.txt"
 #define OUTPUT_FILE_NAME "OUTPUT.txt"
-#define THERE_IS_NO_WAY "No"
-#define LAND_CHAR '@'
-#define WATER_CHAR '.'
-
-enum MAP_LOCATION_MARKER { WATER = 0, LAND = -1, VISITED = -2 };
-
-/*
-/	I'm using a self-written "Node" structure to store
-/ coordinates instead of standard std::pair because
-/ i’m too lazy to write ".first" and ".second",
-/ it’s too cumbersome.
-*/
-struct Node
-{
-	int x;
-	int y;
-
-	Node(int x, int y) : x(x), y(y) {}
-
-	bool operator ==(Node& otherNode) { return x == otherNode.x && y == otherNode.y; }
-};
 
 struct READING_RESULT
 {
 	const std::string OK = "ok";
-	const std::string INVALID_INPUT_DATA = "invalid input data";
+	const std::string WRONG_NUMBER_OF_LINES = "wrong number of lines (must be 3)";
+	const std::string INVALID_INPUT_DATA = "invalid input data (contains non-integer value)";
+	const std::string WRONG_PARAMS = "wrong parameters (must be 2 integers)";
 	const std::string CANNOT_OPEN_FILE = std::string("can't open file \"") + INPUT_FILE_NAME + "\"";
+	const std::string BAD_AMOUNT_OF_DATA = "amount of data does not match the one specified in the parameters";
+	const std::string PARAMS_VALUE_OUT_OF_RANGE = "value in the parameters are out of range (1 <= value <= 100000)";
+	const std::string DATA_VALUE_OUT_OF_RANGE = "data contains value out of range (1 <= value <= 100000000)";
 };
 
-std::string readInput(std::vector<std::string>& lines, int& mapSize, int& raftSize);
+std::string readInput(std::vector<std::vector<int>>& lines);
 
-bool inRange(const int mapSize, const int raftSize, const int x, const int y) { return (x >= 0 && x + (raftSize - 1) < mapSize) && (y >= 0 && y + (raftSize - 1) < mapSize); }
-bool collision(int* const map, const int mapSize, const int raftSize, const int raftX, const int raftY);
+int countReadyToSell(std::vector<int>& sellers, int price);
+int countReadyToBuy(std::vector<int>& buyers, int price);
 
 
 
 int main(int argc, char const *argv[])
 {
-	std::vector<std::string> lines;
+	std::vector<std::vector<int>> lines;
 
-	int mapSize;
-	int raftSize;
-
-	const std::string readingResult = readInput(lines, mapSize, raftSize);
+	const std::string readingResult = readInput(lines);
 	if (readingResult != READING_RESULT().OK)
 	{
 		std::cerr << "[error]: " << readingResult << std::endl;
 		return 1;
 	}
 
-	int* map = new int[mapSize * mapSize]{};
-	for (int y = 0; y < mapSize; ++y)
-		for (int x = 0; x < mapSize; ++x)
-			if (lines[y][x] == LAND_CHAR)
-				map[mapSize * y + x] = MAP_LOCATION_MARKER::LAND;
+	std::vector<int> prices = lines[0];
+	std::sort(prices.begin(), prices.end());
+	prices.erase(unique(prices.begin(), prices.end()), prices.end());
 
-	Node nodeStart(0, 0);
-	Node nodeEnd(mapSize - raftSize, mapSize - raftSize);
+	std::vector<int>& sellers = lines[0];
+	std::sort(sellers.begin(), sellers.end());
 
-	map[mapSize * nodeStart.y + nodeStart.x] = MAP_LOCATION_MARKER::VISITED;
+	std::vector<int>& buyers = lines[1];
+	std::sort(buyers.begin(), buyers.end());
+	std::reverse(buyers.begin(), buyers.end());
 
-	std::vector<Node> wave;
-	std::vector<Node> nextWave;
+	int uniformPrice = 0;
+	int maxProfit = 0;
 
-	wave.push_back(nodeStart);
-
-	int result = -1;
-	while (result == -1)
+	for (int i = 0; i < prices.size(); ++i)
 	{
-		if (!wave.size())
-		{
-			if (!nextWave.size())
-				break;
-			wave = nextWave;
-			nextWave.clear();
-		}
+		int readyToBuy = countReadyToBuy(buyers, prices[i]);
+		int readyToSell = countReadyToSell(sellers, prices[i]);
 
-		Node node = wave.back();
-		wave.pop_back();
-
-		if (node == nodeEnd)
+		int profit = (readyToBuy > readyToSell ? readyToSell : readyToBuy) * prices[i];
+		if (profit > maxProfit)
 		{
-			/*
-			/ In the next line of code, i'm doing +2 because
-			/ nodeStart is marked on map as MAP_LOCATION_MARKER::VISITED (-2)
-			/ and we need to add 2 to the result to compensate for that.
-			/ So if you remove this, the result is 2 less than expected.
-			*/
-			result = map[mapSize * node.y + node.x] + 2;
-			break;
-		}
-
-		if (inRange(mapSize, raftSize, node.x, node.y - 1) && map[mapSize * (node.y - 1) + node.x] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x, node.y - 1))
-		{
-			map[mapSize * (node.y - 1) + node.x] = map[mapSize * node.y + node.x] + 1;
-			nextWave.push_back(Node(node.x, node.y - 1));
-		}
-
-		if (inRange(mapSize, raftSize, node.x, node.y + 1) && map[mapSize * (node.y + 1) + node.x] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x, node.y + 1))
-		{
-			map[mapSize * (node.y + 1) + node.x] = map[mapSize * node.y + node.x] + 1;
-			nextWave.push_back(Node(node.x, node.y + 1));
-		}
-
-		if (inRange(mapSize, raftSize, node.x - 1, node.y) && map[mapSize * node.y + (node.x - 1)] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x - 1, node.y))
-		{
-			map[mapSize * node.y + (node.x - 1)] = map[mapSize * node.y + node.x] + 1;
-			nextWave.push_back(Node(node.x - 1, node.y));
-		}
-
-		if (inRange(mapSize, raftSize, node.x + 1, node.y) && map[mapSize * node.y + (node.x + 1)] == MAP_LOCATION_MARKER::WATER && !collision(map, mapSize, raftSize, node.x + 1, node.y))
-		{
-			map[mapSize * node.y + (node.x + 1)] = map[mapSize * node.y + node.x] + 1;
-			nextWave.push_back(Node(node.x + 1, node.y));
+			maxProfit = profit;
+			uniformPrice = prices[i];
 		}
 	}
 
 	std::ofstream ofs(OUTPUT_FILE_NAME);
-	ofs << (result != -1 ? std::to_string(result) : THERE_IS_NO_WAY);
+	ofs << std::to_string(uniformPrice) + " " + std::to_string(maxProfit);
 
-	delete[] map;
 	return 0;
 }
 
 
 
-bool collision(int* const map, const int mapSize, const int raftSize, const int raftX, const int raftY)
+int countReadyToSell(std::vector<int>& sellers, int price)
 {
-	for (int y = 0; y < raftSize; ++y)
-		for (int x = 0; x < raftSize; ++x)
-			if (map[mapSize * (raftY + y) + (raftX + x)] == MAP_LOCATION_MARKER::LAND)
-				return true;
-	return false;
+	for (int i = 0; i < sellers.size(); ++i)
+		if (sellers[i] > price)
+			return i - 1;
+	return sellers.size();
+}
+
+int countReadyToBuy(std::vector<int>& buyers, int price)
+{
+	for (int i = 0; i < buyers.size(); ++i)
+		if (buyers[i] < price)
+			return i - 1;
+	return buyers.size();
 }
 
 bool isNumber(const std::string& value)
@@ -149,37 +97,7 @@ bool isNumber(const std::string& value)
 	return !value.empty() && it == value.end();
 }
 
-bool isValidArgs(const std::vector<std::string>& args)
-{
-	if (args.size() < 2)
-		return false;
-
-	if (!isNumber(args[0]) || !isNumber(args[1]))
-		return false;
-
-	int N = std::stoi(args[0]);
-	int M = std::stoi(args[1]);
-
-	if (!(1 <= N && N <= 300) || !(1 <= M && M <= N))
-		return false;
-
-	return true;
-}
-
-bool isValidMap(const std::vector<std::string>& map, const int mapSize)
-{
-	if (map.size() != mapSize)
-		return false;
-
-	for (int y = 0; y < mapSize; ++y)
-		for (int x = 0; x < mapSize; ++x)
-			if (!(map[y][x] == WATER_CHAR || map[y][x] == LAND_CHAR))
-				return false;
-
-	return true;
-}
-
-std::string readInput(std::vector<std::string>& lines, int& mapSize, int& raftSize)
+std::string readInput(std::vector<std::vector<int>>& lines)
 {
 	std::string line;
 
@@ -187,26 +105,47 @@ std::string readInput(std::vector<std::string>& lines, int& mapSize, int& raftSi
 	if (!ifs.is_open())
 		return READING_RESULT().CANNOT_OPEN_FILE;
 	
+	int lineIndex = 0;
 	while (std::getline(ifs, line))
-		lines.push_back(line);
+	{
+		std::istringstream iss(line);
+		std::vector<std::string> vec((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
+		std::vector<int> res(vec.size());
+		for (int i = 0; i < vec.size(); ++i)
+		{
+			if (!isNumber(vec[i]))
+				return READING_RESULT().INVALID_INPUT_DATA;
+			
+			int value = std::stoi(vec[i]);
+
+			if (lineIndex == 0)
+				if (!(value >= 1 && value <= 100000))
+					return READING_RESULT().PARAMS_VALUE_OUT_OF_RANGE;
+
+			if (lineIndex > 0)
+				if (!(value >= 1 && value <= 1000000000))
+					return READING_RESULT().DATA_VALUE_OUT_OF_RANGE;
+
+			res[i] = value;
+		}
+		lines.push_back(res);
+		lineIndex++;
+	}
 	ifs.close();
 
-	if (lines.size() < 2)
-		return READING_RESULT().INVALID_INPUT_DATA;
+	if (lines.size() != 3)
+		return READING_RESULT().WRONG_NUMBER_OF_LINES;
 
-	std::istringstream iss(lines[0]);
-	std::vector<std::string> args((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
+	if (lines[0].size() != 2)
+		return READING_RESULT().WRONG_PARAMS;
 
-	if (!isValidArgs(args))
-		return READING_RESULT().INVALID_INPUT_DATA;
-
-	mapSize = std::stoi(args[0]);
-	raftSize = std::stoi(args[1]);
+	int sellersLength = lines[0][0];
+	int buyersLength = lines[0][1];
 
 	lines.erase(lines.begin());
 
-	if (!isValidMap(lines, mapSize))
-		return READING_RESULT().INVALID_INPUT_DATA;
+	if (lines[0].size() != sellersLength || lines[1].size() != buyersLength)
+		return READING_RESULT().BAD_AMOUNT_OF_DATA;
 
 	return READING_RESULT().OK;
 }
