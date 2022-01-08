@@ -1,6 +1,1 @@
-﻿  main.cpp
-C:\Users\Андрей\source\repos\DeadLine\DeadLine\main.cpp(55,20): warning C4018: <: несоответствие типов со знаком и без знака
-C:\Users\Андрей\source\repos\DeadLine\DeadLine\main.cpp(78,20): warning C4018: <: несоответствие типов со знаком и без знака
-C:\Users\Андрей\source\repos\DeadLine\DeadLine\main.cpp(86,20): warning C4018: <: несоответствие типов со знаком и без знака
-C:\Users\Андрей\source\repos\DeadLine\DeadLine\main.cpp(114,21): warning C4018: <: несоответствие типов со знаком и без знака
-  DeadLine.vcxproj -> C:\Users\Андрей\source\repos\DeadLine\Debug\DeadLine.exe
+﻿  DeadLine.vcxproj -> C:\Users\Андрей\source\repos\DeadLine\Debug\DeadLine.exe
